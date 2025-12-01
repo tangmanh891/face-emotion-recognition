@@ -103,6 +103,8 @@ Các tùy chọn trong `train.py`:
 
 Model được lưu tại: `models/emotion_model.h5`
 
+Tải model đã huấn luyện tại: https://drive.google.com/file/d/16FKwNZKq9PG3DrbBfC4oAhXrrFuqQSyF/view?usp=sharing 
+
 ### Chạy Web Application
 
 ```bash
@@ -138,11 +140,6 @@ Nhấn:
    - Hiển thị ảnh với khung đánh dấu khuôn mặt
    - Tên cảm xúc và độ tin cậy (%)
    - Biểu đồ phân bố xác suất các cảm xúc
-
-## 👨‍💻 Author
-
-**tangmanh891**
-- GitHub: [@tangmanh891](https://github.com/tangmanh891)
 
 ## 🙏 Acknowledgments
 
