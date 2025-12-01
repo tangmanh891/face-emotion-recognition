@@ -4,7 +4,7 @@ Script huấn luyện model nhận diện cảm xúc
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow import keras
+import keras
 from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from model import create_emotion_model

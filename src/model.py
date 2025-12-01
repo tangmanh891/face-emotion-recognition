@@ -2,7 +2,7 @@
 Xây dựng kiến trúc mô hình CNN để nhận diện cảm xúc
 """
 import tensorflow as tf
-from tensorflow import keras
+import keras
 from keras import layers, models
 
 def create_emotion_model(input_shape=(48, 48, 1), num_classes=7):

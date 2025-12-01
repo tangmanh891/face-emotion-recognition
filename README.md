@@ -1,158 +1,161 @@
-# Nhận diện Cảm xúc Khuôn mặt (Face Emotion Recognition)
+# 🎭 Face Emotion Recognition
 
-Dự án sử dụng Deep Learning để nhận diện 7 loại cảm xúc từ khuôn mặt người: **Angry, Disgust, Fear, Happy, Sad, Surprise, Neutral**.
+Hệ thống nhận diện cảm xúc khuôn mặt sử dụng Deep Learning (CNN) với giao diện web tương tác. Dự án hỗ trợ nhận diện 7 loại cảm xúc cơ bản từ ảnh và video real-time.
 
-## 🎯 Tính năng
+## ✨ Tính năng
 
-- ✅ Huấn luyện mô hình CNN trên dataset FER-2013
-- ✅ Nhận diện cảm xúc real-time qua webcam
-- ✅ Nhận diện từ ảnh/video
-- ✅ Web interface để demo
-- ✅ Hiển thị biểu đồ phân bố cảm xúc
+- 🤖 **Nhận diện 7 cảm xúc**: Tức giận, Ghê tởm, Sợ hãi, Vui vẻ, Buồn bã, Ngạc nhiên, Bình thường
+- 📷 **Xử lý ảnh**: Upload và nhận diện cảm xúc từ ảnh
+- 🎥 **Real-time Detection**: Nhận diện cảm xúc trực tiếp qua webcam
+- 🌐 **Web Interface**: Giao diện web đẹp mắt, dễ sử dụng với Bootstrap 5
+- 📊 **Visualization**: Hiển thị biểu đồ phân tích độ tin cậy của từng cảm xúc
 
-## 📊 Dataset
+## 🏗️ Kiến trúc
 
-Sử dụng **FER-2013** từ Kaggle:
-- 35,887 ảnh khuôn mặt grayscale 48x48 pixels
-- 7 loại cảm xúc
-- Link: https://www.kaggle.com/datasets/msambare/fer2013
+### Model CNN
+- **Input**: Ảnh grayscale 48x48 pixels
+- **Architecture**: 4 Conv blocks với BatchNormalization và Dropout
+- **Output**: 7 classes (softmax activation)
+- **Optimizer**: Adam (learning rate = 0.001)
+- **Loss**: Categorical Crossentropy
+
+### Tech Stack
+- **Backend**: Flask (Python web framework)
+- **Deep Learning**: TensorFlow/Keras
+- **Computer Vision**: OpenCV
+- **Frontend**: HTML, CSS, JavaScript, Bootstrap 5
+- **Visualization**: Chart.js, Matplotlib
+
+## 📁 Cấu trúc dự án
+
+```
+face-emotion-recognition/
+├── app.py                      # Flask web application
+├── requirements.txt            # Python dependencies
+├── README.md                   # Documentation
+│
+├── data/                       # Dataset directory
+│
+├── models/                     # Trained models
+│   └── emotion_model.h5
+│
+├── src/                        # Source code
+│   ├── emotion_detector.py    # Emotion detection class
+│   ├── model.py               # CNN model architecture
+│   ├── train.py               # Training script
+│   └── realtime_detection.py  # Webcam detection
+│
+├── static/                     # Static files
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       └── app.js
+│
+└── templates/                  # HTML templates
+    └── index.html
+```
 
 ## 🚀 Cài đặt
 
 ### 1. Clone repository
+
 ```bash
-git clone https://github.com/yourusername/face-emotion-recognition.git
+git clone https://github.com/tangmanh891/face-emotion-recognition.git
 cd face-emotion-recognition
 ```
 
 ### 2. Tạo môi trường ảo
-```bash
-# Tạo môi trường conda với Python 3.10
-conda create -n emotion-recognition python=3.10 -y
 
-# Kích hoạt môi trường
-conda activate emotion-recognition
+```bash
+conda create -n emotion-recognition python=3.9 
+conda activate emotion-recognition 
 ```
 
 ### 3. Cài đặt dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
+### 4. Chuẩn bị dữ liệu
 
-### 4. Tải dataset
-Có 2 cách:
+Tải dataset và đặt vào thư mục `data/` theo cấu trúc:
+- `data/train/` - Dữ liệu training
+- `data/test/` - Dữ liệu testing
 
-**Cách 1: Sử dụng Kaggle API**
-```bash
-# Đăng ký tài khoản Kaggle và tải kaggle.json
-# Đặt kaggle.json vào: ~/.kaggle/ (Linux/Mac) hoặc C:\Users\<username>\.kaggle\ (Windows)
-python src/download_data.py
-```
+Mỗi thư mục chứa 7 thư mục con tương ứng với 7 loại cảm xúc.
 
-**Cách 2: Tải thủ công**
-- Truy cập: https://www.kaggle.com/datasets/msambare/fer2013
-- Tải về và giải nén vào thư mục `data/`
+**Dataset**: 
+- [FER-2013](https://www.kaggle.com/datasets/msambare/fer2013)
 
-## 📚 Sử dụng
+## 🎯 Sử dụng
 
-### 1. Huấn luyện model
+### Training Model
 
-**Cách 1: Local (CPU/GPU)**
 ```bash
 python src/train.py
 ```
 
-**Cách 2: Google Colab**
-1. Mở [train_colab.ipynb](train_colab.ipynb) trong Google Colab
-2. Runtime → Change runtime type → **GPU (T4)**
-3. Chạy từng cell theo thứ tự
-4. Tải model về sau khi train xong
+Các tùy chọn trong `train.py`:
+- `BATCH_SIZE`: Kích thước batch (mặc định: 64)
+- `EPOCHS`: Số epoch (mặc định: 50)
+- `IMG_SIZE`: Kích thước ảnh (mặc định: 48x48)
 
-### 2. Nhận diện real-time (webcam)
+Model được lưu tại: `models/emotion_model.h5`
+
+### Chạy Web Application
+
+```bash
+python app.py
+```
+
+Truy cập: `http://localhost:5000`
+
+### Nhận diện Real-time qua Webcam
+
 ```bash
 python src/realtime_detection.py
 ```
 
-### 3. Chạy web interface
-```bash
-python app.py
-```
-Truy cập: http://localhost:5000
+Nhấn:
+- `q`: Thoát
+- `s`: Chụp ảnh và lưu kết quả
+- `p`: Hiển thị biểu đồ phân tích
 
-### 4. Nhận diện từ ảnh
-```python
-from src.emotion_detector import EmotionDetector
+## 🎨 Giao diện Web
 
-detector = EmotionDetector('models/emotion_model.h5')
-emotion, confidence = detector.predict_emotion('path/to/image.jpg')
-print(f"Cảm xúc: {emotion}, Độ tin cậy: {confidence:.2f}%")
-```
+### Các chức năng chính:
 
-## 🏗️ Cấu trúc dự án
+1. **Upload ảnh**: 
+   - Kéo thả hoặc chọn file ảnh
+   - Hỗ trợ: JPG, PNG, JPEG
+   
+2. **Chụp ảnh từ webcam**:
+   - Bật camera trực tiếp trên trình duyệt
+   - Chụp và phân tích ngay lập tức
 
-```
-face-emotion-recognition/
-│
-├── data/                       # Dataset
-├── models/                     # Trained models
-├── src/                        # Source code
-│   ├── model.py               # CNN model architecture
-│   ├── train.py               # Training script
-│   ├── emotion_detector.py    # Detection class
-│   ├── realtime_detection.py  # Webcam detection
-│   └── download_data.py       # Download dataset
-├── notebooks/                  # Jupyter notebooks
-│   └── emotion_recognition.ipynb
-├── static/                     # Web static files
-│   ├── css/
-│   └── js/
-├── templates/                  # HTML templates
-│   └── index.html
-├── app.py                      # Flask web app
-├── requirements.txt
-└── README.md
-```
+3. **Kết quả**:
+   - Hiển thị ảnh với khung đánh dấu khuôn mặt
+   - Tên cảm xúc và độ tin cậy (%)
+   - Biểu đồ phân bố xác suất các cảm xúc
 
-## 🧠 Kiến trúc Model
+## 👨‍💻 Author
 
-Mô hình CNN gồm:
-- 4 Convolutional blocks (Conv2D + BatchNorm + MaxPooling + Dropout)
-- 2 Fully Connected layers
-- Output: 7 classes (softmax activation)
+**tangmanh891**
+- GitHub: [@tangmanh891](https://github.com/tangmanh891)
 
-## 📈 Kết quả
+## 🙏 Acknowledgments
 
-- Training Accuracy: ~65%
-- Validation Accuracy: ~60%
-- Test Accuracy: ~58%
+- Dataset: FER-2013
+- OpenCV for face detection
+- TensorFlow/Keras team
+- Flask framework
+- Bootstrap team
 
-## 🛠️ Công nghệ sử dụng
+## 📞 Contact
 
-- **TensorFlow/Keras**: Xây dựng và huấn luyện model
-- **OpenCV**: Xử lý ảnh và video
-- **Flask**: Web framework
-- **NumPy, Pandas**: Xử lý dữ liệu
-- **Matplotlib, Seaborn**: Visualization
+Nếu có câu hỏi hoặc đóng góp ý tưởng, vui lòng tạo issue trên GitHub.
 
-## 📝 Ghi chú
+---
 
-- Model hoạt động tốt nhất với ảnh có ánh sáng tốt
-- Khuôn mặt nên ở chính giữa và rõ ràng
-- Có thể cải thiện độ chính xác bằng cách:
-  - Tăng kích thước dataset
-  - Data augmentation
-  - Transfer learning (VGG, ResNet)
-  - Ensemble methods
-
-## 📄 License
-
-MIT License
-
-## 👨‍💻 Tác giả
-
-[Your Name]
-
-## 🤝 Đóng góp
-
-Pull requests are welcome! For major changes, please open an issue first.
+⭐ **Star this repo if you find it helpful!** ⭐

@@ -3,7 +3,7 @@ Class để nhận diện cảm xúc từ ảnh
 """
 import cv2
 import numpy as np
-from tensorflow import keras
+import keras
 
 class EmotionDetector:
     """

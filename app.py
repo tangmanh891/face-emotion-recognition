@@ -1,6 +1,3 @@
-"""
-Flask Web Application cho Emotion Detection
-"""
 from flask import Flask, render_template, request, jsonify, Response
 from flask_cors import CORS
 import cv2
@@ -8,8 +5,8 @@ import numpy as np
 import base64
 from io import BytesIO
 from PIL import Image
-import os
 import sys
+import os
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
