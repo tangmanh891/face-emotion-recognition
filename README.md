@@ -2,6 +2,13 @@
 
 Hệ thống nhận diện cảm xúc khuôn mặt sử dụng Deep Learning (CNN) với giao diện web tương tác. Dự án hỗ trợ nhận diện 7 loại cảm xúc cơ bản từ ảnh và video real-time.
 
+## 🎬 Demo
+
+<div align="center">
+  <img src="templates/demo.png" alt="Demo Web Interface" width="800"/>
+  <p><i>Giao diện web nhận diện cảm xúc khuôn mặt</i></p>
+</div>
+
 ## ✨ Tính năng
 
 - 🤖 **Nhận diện 7 cảm xúc**: Tức giận, Ghê tởm, Sợ hãi, Vui vẻ, Buồn bã, Ngạc nhiên, Bình thường
