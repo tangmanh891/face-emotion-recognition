@@ -30,10 +30,18 @@ wheels/
 # Models
 *.h5
 *.hdf5
+*.keras
 *.pb
 *.ckpt
 *.pth
 *.pt
+*.onnx
+# .tflite generally ignored but track the MediaPipe face detector
+*.tflite
+!models/blaze_face_short_range.tflite
+
+# Detector benchmark outputs (regenerated on each run)
+models/detector_benchmark/
 
 # Data
 data/fer2013.csv
@@ -58,3 +66,16 @@ Thumbs.db
 .env
 .venv
 kaggle.json
+
+# Claude Code local config
+.claude/
+
+# Test/coverage artifacts
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
+# Temp curl outputs
+detect.json

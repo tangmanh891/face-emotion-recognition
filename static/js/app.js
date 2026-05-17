@@ -1,4 +1,4 @@
-// ================================
+﻿// ================================
 // GLOBAL VARIABLES
 // ================================
 let emotionChart = null;
@@ -6,27 +6,31 @@ let webcamChart = null;
 let videoStream = null;
 let webcamInterval = null;
 let fpsInterval = null;
+let webcamRequestInFlight = false;
 let lastFrameTime = Date.now();
 let frameCount = 0;
 
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+
 const EMOTIONS_VI = {
-    'Tức giận': '😠',
-    'Ghê tởm': '🤢',
-    'Sợ hãi': '😨',
-    'Vui vẻ': '😊',
-    'Buồn bã': '😢',
-    'Ngạc nhiên': '😲',
-    'Bình thường': '😐'
+    'T\u1ee9c gi\u1eadn': '😠',
+    'Gh\u00ea t\u1edfm': '🤢',
+    'S\u1ee3 h\u00e3i': '😨',
+    'Vui v\u1ebb': '😊',
+    'Bu\u1ed3n b\u00e3': '😢',
+    'Ng\u1ea1c nhi\u00ean': '😲',
+    'B\u00ecnh th\u01b0\u1eddng': '😐'
 };
 
 const EMOTION_COLORS = {
-    'Tức giận': '#ef4444',
-    'Ghê tởm': '#8b5cf6',
-    'Sợ hãi': '#f97316',
-    'Vui vẻ': '#22c55e',
-    'Buồn bã': '#3b82f6',
-    'Ngạc nhiên': '#eab308',
-    'Bình thường': '#6b7280'
+    'T\u1ee9c gi\u1eadn': '#ef4444',
+    'Gh\u00ea t\u1edfm': '#8b5cf6',
+    'S\u1ee3 h\u00e3i': '#f97316',
+    'Vui v\u1ebb': '#22c55e',
+    'Bu\u1ed3n b\u00e3': '#3b82f6',
+    'Ng\u1ea1c nhi\u00ean': '#eab308',
+    'B\u00ecnh th\u01b0\u1eddng': '#6b7280'
 };
 
 // ================================
@@ -37,11 +41,10 @@ const elements = {
     imageUpload: document.getElementById('imageUpload'),
     uploadArea: document.getElementById('uploadArea'),
     previewImage: document.getElementById('previewImage'),
-    previewContainer: document.getElementById('previewContainer'),
     detectBtn: document.getElementById('detectBtn'),
     resultsCard: document.getElementById('resultsCard'),
     resultStats: document.getElementById('resultStats'),
-    
+
     // Webcam
     video: document.getElementById('video'),
     canvas: document.getElementById('canvas'),
@@ -52,7 +55,7 @@ const elements = {
     fpsCounter: document.getElementById('fpsCounter'),
     faceCount: document.getElementById('faceCount'),
     emotionList: document.getElementById('emotionList'),
-    
+
     // Loading
     loadingOverlay: document.getElementById('loadingOverlay')
 };
@@ -60,7 +63,7 @@ const elements = {
 // ================================
 // INITIALIZATION
 // ================================
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     initializeUpload();
     initializeWebcam();
     smoothScroll();
@@ -70,23 +73,39 @@ document.addEventListener('DOMContentLoaded', function() {
 // UPLOAD IMAGE FUNCTIONALITY
 // ================================
 function initializeUpload() {
-    // File input change
     elements.imageUpload.addEventListener('change', handleFileSelect);
-    
-    // Drag and drop
     elements.uploadArea.addEventListener('dragover', handleDragOver);
     elements.uploadArea.addEventListener('dragleave', handleDragLeave);
     elements.uploadArea.addEventListener('drop', handleDrop);
-    
-    // Detect button
     elements.detectBtn.addEventListener('click', detectEmotion);
+}
+
+function validateImageFile(file) {
+    if (!file) {
+        return 'Vui long chon anh truoc.';
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+        return 'Dinh dang anh khong hop le. Chi ho tro JPG, PNG, WEBP.';
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+        return 'Anh vuot qua 5MB. Vui long chon anh nho hon.';
+    }
+
+    return null;
 }
 
 function handleFileSelect(e) {
     const file = e.target.files[0];
-    if (file) {
-        previewFile(file);
+    const error = validateImageFile(file);
+    if (error) {
+        showNotification(error, 'warning');
+        elements.imageUpload.value = '';
+        return;
     }
+
+    previewFile(file);
 }
 
 function handleDragOver(e) {
@@ -102,59 +121,64 @@ function handleDragLeave(e) {
 function handleDrop(e) {
     e.preventDefault();
     elements.uploadArea.classList.remove('dragover');
-    
+
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-        previewFile(file);
-        // Set the file to input element
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        elements.imageUpload.files = dataTransfer.files;
+    const error = validateImageFile(file);
+    if (error) {
+        showNotification(error, 'warning');
+        return;
     }
+
+    previewFile(file);
+
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    elements.imageUpload.files = dataTransfer.files;
 }
 
 function previewFile(file) {
     const reader = new FileReader();
-    
-    reader.onload = function(e) {
+
+    reader.onload = (e) => {
         elements.previewImage.src = e.target.result;
         elements.previewImage.style.display = 'block';
         document.querySelector('.preview-placeholder').style.display = 'none';
         elements.detectBtn.style.display = 'block';
         elements.resultsCard.style.display = 'none';
     };
-    
+
     reader.readAsDataURL(file);
 }
 
 async function detectEmotion() {
     const file = elements.imageUpload.files[0];
-    if (!file) {
-        showNotification('Vui lòng chọn ảnh trước!', 'warning');
+    const error = validateImageFile(file);
+    if (error) {
+        showNotification(error, 'warning');
         return;
     }
-    
+
     showLoading(true);
-    
+
     const formData = new FormData();
     formData.append('image', file);
-    
+
     try {
         const response = await fetch('/detect', {
             method: 'POST',
             body: formData
         });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            displayResults(data);
-        } else {
-            showNotification(data.error || 'Có lỗi xảy ra', 'error');
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Khong the phan tich anh');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('Không thể kết nối đến server', 'error');
+
+        displayResults(data);
+    } catch (fetchError) {
+        console.error('Error:', fetchError);
+        showNotification(fetchError.message || 'Khong the ket noi den server', 'error');
     } finally {
         showLoading(false);
     }
@@ -162,74 +186,73 @@ async function detectEmotion() {
 
 function displayResults(data) {
     elements.resultsCard.style.display = 'block';
-    
-    // Show detected image
+
     if (data.image) {
         elements.previewImage.src = data.image;
     }
-    
-    // Show stats
+
     let statsHTML = `
         <div class="alert alert-success">
             <i class="fas fa-check-circle me-2"></i>
-            <strong>Phát hiện ${data.faces_count} khuôn mặt</strong>
+            <strong>Phat hien ${data.faces_count} khuon mat</strong>
         </div>
     `;
-    
-    if (data.faces && data.faces.length > 0) {
+
+    if (data.message) {
+        statsHTML += `<p class="text-muted small mb-2">${data.message}</p>`;
+    }
+
+    if (Array.isArray(data.faces) && data.faces.length > 0) {
         statsHTML += '<div class="emotion-list">';
         data.faces.forEach((face, index) => {
             const emoji = EMOTIONS_VI[face.emotion] || '😊';
             statsHTML += `
                 <div class="emotion-item">
                     <span class="emotion-name">
-                        ${emoji} Khuôn mặt ${index + 1}: ${face.emotion}
+                        ${emoji} Khuon mat ${index + 1}: ${face.emotion}
                     </span>
-                    <span class="emotion-value">${face.confidence}%</span>
+                    <span class="emotion-value">${Number(face.confidence).toFixed(2)}%</span>
                 </div>
             `;
         });
         statsHTML += '</div>';
     }
-    
+
     elements.resultStats.innerHTML = statsHTML;
-    
-    // Update chart
-    if (data.faces && data.faces.length > 0) {
-        updateEmotionChart(data.faces[0]);
+
+    if (Array.isArray(data.faces) && data.faces.length > 0 && data.faces[0].probabilities) {
+        updateEmotionChart(data.faces[0].probabilities);
+    } else if (emotionChart) {
+        emotionChart.destroy();
+        emotionChart = null;
     }
-    
-    // Smooth scroll to results
+
     elements.resultsCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function updateEmotionChart(face) {
+function updateEmotionChart(probabilities) {
     const ctx = document.getElementById('emotionChart').getContext('2d');
-    
-    // Destroy existing chart
+
     if (emotionChart) {
         emotionChart.destroy();
     }
-    
-    // Get probabilities
-    let labels = [];
-    let values = [];
-    let colors = [];
-    
-    if (face.probabilities) {
-        for (const [emotion, value] of Object.entries(face.probabilities)) {
-            labels.push(emotion);
-            values.push(value.toFixed(2));
-            colors.push(EMOTION_COLORS[emotion] || '#6b7280');
-        }
-    }
-    
+
+    const labels = [];
+    const values = [];
+    const colors = [];
+
+    Object.entries(probabilities).forEach(([emotion, value]) => {
+        labels.push(emotion);
+        values.push(Number(value.toFixed(2)));
+        colors.push(EMOTION_COLORS[emotion] || '#6b7280');
+    });
+
     emotionChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labels,
+            labels,
             datasets: [{
-                label: 'Xác suất (%)',
+                label: 'Xac suat (%)',
                 data: values,
                 backgroundColor: colors,
                 borderColor: colors,
@@ -246,7 +269,7 @@ function updateEmotionChart(face) {
                 },
                 title: {
                     display: true,
-                    text: 'Phân bố xác suất các cảm xúc',
+                    text: 'Phan bo xac suat cac cam xuc',
                     font: {
                         size: 16,
                         weight: 'bold'
@@ -254,8 +277,8 @@ function updateEmotionChart(face) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
-                            return context.parsed.y.toFixed(2) + '%';
+                        label(context) {
+                            return `${context.parsed.y.toFixed(2)}%`;
                         }
                     }
                 }
@@ -265,8 +288,8 @@ function updateEmotionChart(face) {
                     beginAtZero: true,
                     max: 100,
                     ticks: {
-                        callback: function(value) {
-                            return value + '%';
+                        callback(value) {
+                            return `${value}%`;
                         }
                     }
                 }
@@ -285,13 +308,13 @@ function initializeWebcam() {
 
 async function startWebcam() {
     try {
-        videoStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                width: 640, 
-                height: 480 
-            } 
+        videoStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: 640,
+                height: 480
+            }
         });
-        
+
         elements.video.srcObject = videoStream;
         elements.video.style.display = 'block';
         elements.webcamPlaceholder.style.display = 'none';
@@ -299,36 +322,39 @@ async function startWebcam() {
         elements.stopWebcam.style.display = 'inline-block';
         elements.cameraStatus.classList.add('online');
         elements.cameraStatus.querySelector('.status-text').textContent = 'Online';
-        
-        // Wait for video to load
+
+        frameCount = 0;
+        lastFrameTime = Date.now();
+
         elements.video.onloadedmetadata = () => {
             elements.video.play();
             startDetectionLoop();
             startFPSCounter();
         };
-        
     } catch (error) {
         console.error('Error accessing webcam:', error);
-        showNotification('Không thể truy cập camera. Vui lòng kiểm tra quyền truy cập.', 'error');
+        showNotification('Khong the truy cap camera. Vui long kiem tra quyen truy cap.', 'error');
     }
 }
 
 function stopWebcam() {
     if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
+        videoStream.getTracks().forEach((track) => track.stop());
         videoStream = null;
     }
-    
+
     if (webcamInterval) {
         clearInterval(webcamInterval);
         webcamInterval = null;
     }
-    
+
     if (fpsInterval) {
         clearInterval(fpsInterval);
         fpsInterval = null;
     }
-    
+
+    webcamRequestInFlight = false;
+
     elements.video.style.display = 'none';
     elements.webcamPlaceholder.style.display = 'block';
     elements.startWebcam.style.display = 'inline-block';
@@ -336,24 +362,26 @@ function stopWebcam() {
     elements.cameraStatus.classList.remove('online');
     elements.cameraStatus.querySelector('.status-text').textContent = 'Offline';
     elements.fpsCounter.textContent = 'FPS: 0';
-    
-    // Clear canvas
+
     const ctx = elements.canvas.getContext('2d');
     ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+
+    clearWebcamStats();
 }
 
 function startDetectionLoop() {
-    webcamInterval = setInterval(async () => {
-        await detectWebcamEmotion();
-        frameCount++;
-    }, 200); // Detect every 200ms (~5 FPS for API calls)
+    webcamInterval = setInterval(() => {
+        if (!webcamRequestInFlight) {
+            detectWebcamEmotion();
+        }
+    }, 200);
 }
 
 function startFPSCounter() {
     fpsInterval = setInterval(() => {
         const now = Date.now();
         const elapsed = (now - lastFrameTime) / 1000;
-        const fps = Math.round(frameCount / elapsed);
+        const fps = elapsed > 0 ? Math.round(frameCount / elapsed) : 0;
         elements.fpsCounter.textContent = `FPS: ${fps}`;
         frameCount = 0;
         lastFrameTime = now;
@@ -364,18 +392,20 @@ async function detectWebcamEmotion() {
     const canvas = elements.canvas;
     const video = elements.video;
     const ctx = canvas.getContext('2d');
-    
-    // Set canvas size
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    // Draw video frame to canvas
-    ctx.drawImage(video, 0, 0);
-    
-    // Convert canvas to base64
-    const imageData = canvas.toDataURL('image/jpeg', 0.8);
-    
+
+    if (!video.videoWidth || !video.videoHeight) {
+        return;
+    }
+
+    webcamRequestInFlight = true;
+
     try {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        ctx.drawImage(video, 0, 0);
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
         const response = await fetch('/detect_base64', {
             method: 'POST',
             headers: {
@@ -383,99 +413,108 @@ async function detectWebcamEmotion() {
             },
             body: JSON.stringify({ image: imageData })
         });
-        
-        const data = await response.json();
-        
-        if (data.success && data.faces && data.faces.length > 0) {
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Khong the phan tich webcam frame');
+        }
+
+        if (Array.isArray(data.faces) && data.faces.length > 0) {
             drawWebcamResults(ctx, data.faces);
             updateWebcamStats(data.faces);
         } else {
-            // Just redraw the video frame
             ctx.drawImage(video, 0, 0);
-            elements.faceCount.textContent = '0';
-            elements.emotionList.innerHTML = '<p class="text-muted small">Không phát hiện khuôn mặt</p>';
+            clearWebcamStats();
         }
+
+        frameCount += 1;
     } catch (error) {
         console.error('Error detecting emotion:', error);
+    } finally {
+        webcamRequestInFlight = false;
     }
 }
 
 function drawWebcamResults(ctx, faces) {
-    // Redraw video frame
     ctx.drawImage(elements.video, 0, 0);
-    
-    // Draw bounding boxes and labels
-    faces.forEach(face => {
+
+    faces.forEach((face) => {
         const { position, emotion, confidence } = face;
         const { x, y, w, h } = position;
-        
-        // Draw rectangle
+
         ctx.strokeStyle = '#00ff00';
         ctx.lineWidth = 3;
         ctx.strokeRect(x, y, w, h);
-        
-        // Draw label background
-        const text = `${emotion}: ${confidence.toFixed(1)}%`;
+
+        const text = `${emotion}: ${Number(confidence).toFixed(1)}%`;
         ctx.font = 'bold 16px Poppins';
         const textMetrics = ctx.measureText(text);
         const textHeight = 20;
-        
+
         ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
         ctx.fillRect(x, y - textHeight - 5, textMetrics.width + 10, textHeight + 5);
-        
-        // Draw text
+
         ctx.fillStyle = '#000';
         ctx.fillText(text, x + 5, y - 8);
     });
 }
 
 function updateWebcamStats(faces) {
-    // Update face count
     elements.faceCount.textContent = faces.length;
-    
-    // Update emotion list
+
     let listHTML = '';
     faces.forEach((face, index) => {
         const emoji = EMOTIONS_VI[face.emotion] || '😊';
         listHTML += `
             <div class="emotion-item">
                 <span class="emotion-name">
-                    ${emoji} Face ${index + 1}: ${face.emotion}
+                    ${emoji} Khuon mat ${index + 1}: ${face.emotion}
                 </span>
-                <span class="emotion-value">${face.confidence.toFixed(1)}%</span>
+                <span class="emotion-value">${Number(face.confidence).toFixed(1)}%</span>
             </div>
         `;
     });
     elements.emotionList.innerHTML = listHTML;
-    
-    // Update chart with first face
+
     if (faces.length > 0 && faces[0].probabilities) {
         updateWebcamChart(faces[0].probabilities);
+    } else if (webcamChart) {
+        webcamChart.destroy();
+        webcamChart = null;
+    }
+}
+
+function clearWebcamStats() {
+    elements.faceCount.textContent = '0';
+    elements.emotionList.innerHTML = '<p class="text-muted small">Khong phat hien khuon mat</p>';
+
+    if (webcamChart) {
+        webcamChart.destroy();
+        webcamChart = null;
     }
 }
 
 function updateWebcamChart(probabilities) {
     const ctx = document.getElementById('webcamChart').getContext('2d');
-    
-    // Destroy existing chart
+
     if (webcamChart) {
         webcamChart.destroy();
     }
-    
-    let labels = [];
-    let values = [];
-    let colors = [];
-    
-    for (const [emotion, value] of Object.entries(probabilities)) {
+
+    const labels = [];
+    const values = [];
+    const colors = [];
+
+    Object.entries(probabilities).forEach(([emotion, value]) => {
         labels.push(emotion);
-        values.push(value.toFixed(2));
+        values.push(Number(value.toFixed(2)));
         colors.push(EMOTION_COLORS[emotion] || '#6b7280');
-    }
-    
+    });
+
     webcamChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: labels,
+            labels,
             datasets: [{
                 data: values,
                 backgroundColor: colors,
@@ -492,8 +531,8 @@ function updateWebcamChart(probabilities) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
-                            return context.label + ': ' + context.parsed.toFixed(2) + '%';
+                        label(context) {
+                            return `${context.label}: ${context.parsed.toFixed(2)}%`;
                         }
                     }
                 }
@@ -510,20 +549,19 @@ function showLoading(show) {
 }
 
 function showNotification(message, type = 'info') {
-    // Simple alert for now, can be replaced with toast notification
     const icons = {
         success: '✅',
         error: '❌',
         warning: '⚠️',
         info: 'ℹ️'
     };
-    
+
     alert(`${icons[type]} ${message}`);
 }
 
 function smoothScroll() {
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
+    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener('click', function scrollToTarget(e) {
             e.preventDefault();
             const target = document.querySelector(this.getAttribute('href'));
             if (target) {
@@ -547,12 +585,10 @@ window.addEventListener('beforeunload', () => {
 // KEYBOARD SHORTCUTS
 // ================================
 document.addEventListener('keydown', (e) => {
-    // ESC to stop webcam
     if (e.key === 'Escape' && videoStream) {
         stopWebcam();
     }
-    
-    // Space to detect (when in upload tab)
+
     if (e.key === ' ' && document.querySelector('#upload.active') && elements.imageUpload.files[0]) {
         e.preventDefault();
         detectEmotion();
@@ -562,7 +598,6 @@ document.addEventListener('keydown', (e) => {
 // ================================
 // CONSOLE MESSAGE
 // ================================
-console.log('%c🎭 Face Emotion Recognition System', 'color: #667eea; font-size: 20px; font-weight: bold');
+console.log('%cFace Emotion Recognition System', 'color: #667eea; font-size: 20px; font-weight: bold');
 console.log('%cPowered by TensorFlow & OpenCV', 'color: #764ba2; font-size: 14px');
-console.log('%c💡 Press ESC to stop webcam', 'color: #6c757d; font-size: 12px');
-
+console.log('%cPress ESC to stop webcam', 'color: #6c757d; font-size: 12px');
