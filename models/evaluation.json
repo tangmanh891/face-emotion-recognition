@@ -1,0 +1,129 @@
+{
+  "accuracy": 0.6688,
+  "macro_f1": 0.6339,
+  "weighted_f1": 0.6633,
+  "per_class": {
+    "angry": {
+      "precision": 0.5802,
+      "recall": 0.6378,
+      "f1": 0.6077,
+      "support": 958
+    },
+    "disgust": {
+      "precision": 0.6623,
+      "recall": 0.4595,
+      "f1": 0.5426,
+      "support": 111
+    },
+    "fear": {
+      "precision": 0.586,
+      "recall": 0.3926,
+      "f1": 0.4702,
+      "support": 1024
+    },
+    "happy": {
+      "precision": 0.8857,
+      "recall": 0.8692,
+      "f1": 0.8774,
+      "support": 1774
+    },
+    "neutral": {
+      "precision": 0.532,
+      "recall": 0.7616,
+      "f1": 0.6264,
+      "support": 1233
+    },
+    "sad": {
+      "precision": 0.5925,
+      "recall": 0.4675,
+      "f1": 0.5226,
+      "support": 1247
+    },
+    "surprise": {
+      "precision": 0.7718,
+      "recall": 0.8099,
+      "f1": 0.7904,
+      "support": 831
+    }
+  },
+  "inference_latency_ms": {
+    "mean": 87.284,
+    "median": 86.644,
+    "p95": 104.213,
+    "runs": 100
+  },
+  "confusion_matrix": [
+    [
+      611,
+      9,
+      64,
+      25,
+      156,
+      73,
+      20
+    ],
+    [
+      40,
+      51,
+      2,
+      4,
+      6,
+      6,
+      2
+    ],
+    [
+      135,
+      7,
+      402,
+      25,
+      175,
+      176,
+      104
+    ],
+    [
+      43,
+      2,
+      22,
+      1542,
+      107,
+      23,
+      35
+    ],
+    [
+      67,
+      4,
+      29,
+      64,
+      939,
+      111,
+      19
+    ],
+    [
+      134,
+      4,
+      101,
+      51,
+      355,
+      583,
+      19
+    ],
+    [
+      23,
+      0,
+      66,
+      30,
+      27,
+      12,
+      673
+    ]
+  ],
+  "class_names": [
+    "angry",
+    "disgust",
+    "fear",
+    "happy",
+    "neutral",
+    "sad",
+    "surprise"
+  ]
+}

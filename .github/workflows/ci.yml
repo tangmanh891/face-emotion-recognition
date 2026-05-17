@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  TF_CPP_MIN_LOG_LEVEL: '2'
+  TF_USE_LEGACY_KERAS: '1'
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install ruff
+        run: pip install ruff==0.15.13
+
+      - name: Ruff check
+        run: ruff check .
+
+  test:
+    name: Tests (pytest + coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements-serve.txt
+            requirements-dev.txt
+
+      - name: Install system libs for mediapipe
+        run: sudo apt-get update && sudo apt-get install -y libgles2 libegl1 libgl1
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-serve.txt -r requirements-dev.txt
+
+      - name: Download MediaPipe face model
+        run: |
+          mkdir -p models
+          curl -L -o models/blaze_face_short_range.tflite \
+            https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ --cov=src --cov=app --cov-report=term --cov-report=xml -q
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 7

@@ -1,0 +1,57 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    "data/",
+    "models/",
+    "tests/face_samples/",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "B008",   # function calls in default arguments — common Flask pattern
+    "SIM117", # nested with — readability trumps here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011", "E402"]  # asserting + sys.path manipulation
+"scripts/*" = ["E402"]  # sys.path manipulation before imports
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["src", "app"]
+omit = [
+    "src/realtime_detection.py",   # interactive desktop script, needs camera
+    "src/train.py",                # exercised by training, not tests
+    "src/evaluate.py",             # exercised by evaluation, not tests
+    "src/model.py",                # static model definitions
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+skip_covered = false

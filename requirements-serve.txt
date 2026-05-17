@@ -1,0 +1,17 @@
+# Runtime dependencies for serving the Flask app.
+# CPU-only TensorFlow keeps the Docker image small (~600MB vs ~5GB with CUDA).
+
+tensorflow==2.17.1
+tf-keras==2.17.0
+
+# Computer vision (headless = no GUI libs, smaller image)
+opencv-python-headless==4.8.1.78
+mediapipe>=0.10.20
+Pillow
+
+# Web stack
+flask==3.0.0
+flask-cors==4.0.0
+gunicorn==21.2.0
+
+numpy==1.26.4

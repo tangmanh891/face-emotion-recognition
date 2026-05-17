@@ -1,155 +1,189 @@
-"""
-Class để nhận diện cảm xúc từ ảnh
-"""
+"""Emotion detector utilities."""
+
+import json
+import logging
+import os
+from pathlib import Path
+
 import cv2
 import numpy as np
-import keras
+from tensorflow import keras
+
+try:
+    from src.face_detectors import FaceDetectorBase, create_face_detector
+except ImportError:  # pragma: no cover - allow `from emotion_detector import ...`
+    from face_detectors import FaceDetectorBase, create_face_detector
+
+logger = logging.getLogger(__name__)
+
+
+# Canonical English labels — used as fallback when class_indices.json is missing.
+# Order matches the alphabetical sort that Keras flow_from_directory applies.
+DEFAULT_EMOTIONS_EN = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
+
+# Vietnamese display labels mapped from the English folder name.
+EMOTIONS_VI_MAP = {
+    'Angry': 'Tức giận',
+    'Disgust': 'Ghê tởm',
+    'Fear': 'Sợ hãi',
+    'Happy': 'Vui vẻ',
+    'Sad': 'Buồn bã',
+    'Surprise': 'Ngạc nhiên',
+    'Neutral': 'Bình thường',
+}
+
 
 class EmotionDetector:
-    """
-    Class nhận diện cảm xúc từ khuôn mặt
-    """
-    
-    # 7 loại cảm xúc
-    EMOTIONS = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
-    
-    # Tiếng Việt
-    EMOTIONS_VI = ['Tức giận', 'Ghê tởm', 'Sợ hãi', 'Vui vẻ', 'Buồn bã', 'Ngạc nhiên', 'Bình thường']
-    
-    def __init__(self, model_path, use_vietnamese=False):
-        """
-        Khởi tạo detector
-        
-        Args:
-            model_path: Đường dẫn đến file model (.h5)
-            use_vietnamese: Sử dụng tên cảm xúc tiếng Việt
+    """Detect facial emotions from images."""
+
+    def __init__(
+        self,
+        model_path,
+        use_vietnamese=False,
+        class_indices_path=None,
+        face_detector: FaceDetectorBase | str | None = None,
+    ):
+        """Load the classifier and a face detector.
+
+        face_detector:
+            - None  → use env var EMOTION_FACE_BACKEND (default 'mediapipe')
+            - str   → 'mediapipe' | 'haar'
+            - FaceDetectorBase instance → use as-is
         """
         self.model = keras.models.load_model(model_path)
-        self.face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        self.face_detector = self._build_face_detector(face_detector)
+
+        class_names_en = self._load_class_names(model_path, class_indices_path)
+        if use_vietnamese:
+            self.emotions = [EMOTIONS_VI_MAP.get(name, name) for name in class_names_en]
+        else:
+            self.emotions = class_names_en
+
+    @staticmethod
+    def _build_face_detector(spec):
+        if isinstance(spec, FaceDetectorBase):
+            return spec
+        backend = spec if isinstance(spec, str) else os.environ.get(
+            'EMOTION_FACE_BACKEND', 'mediapipe'
         )
-        self.emotions = self.EMOTIONS_VI if use_vietnamese else self.EMOTIONS
-        
+        try:
+            detector = create_face_detector(backend)
+            logger.info('Using face detector backend: %s', detector.backend_name)
+            return detector
+        except Exception:
+            if backend == 'mediapipe':
+                logger.warning(
+                    'MediaPipe backend failed to initialize — falling back to Haar. '
+                    'Run with EMOTION_FACE_BACKEND=haar to silence this.',
+                    exc_info=True,
+                )
+                return create_face_detector('haar')
+            raise
+
+    @staticmethod
+    def _load_class_names(model_path, class_indices_path):
+        """Load class names in the exact order the model was trained on.
+
+        Why: training uses ImageDataGenerator.class_indices which sorts
+        folders alphabetically. Reading this mapping from disk prevents
+        silent mislabeling if folders are renamed or reordered.
+        """
+        if class_indices_path is None:
+            class_indices_path = Path(model_path).parent / 'class_indices.json'
+
+        class_indices_path = Path(class_indices_path)
+        if not class_indices_path.exists():
+            logger.warning(
+                'class_indices.json not found at %s — falling back to default order. '
+                'Re-train with src/train.py to generate it.',
+                class_indices_path,
+            )
+            return list(DEFAULT_EMOTIONS_EN)
+
+        with class_indices_path.open('r', encoding='utf-8') as f:
+            mapping = json.load(f)
+
+        # mapping is {class_name: index}; invert and sort by index.
+        ordered = sorted(mapping.items(), key=lambda item: item[1])
+        return [name.capitalize() for name, _ in ordered]
+
     def detect_faces(self, image):
-        """
-        Phát hiện khuôn mặt trong ảnh
-        
-        Args:
-            image: Ảnh BGR từ OpenCV
-            
-        Returns:
-            faces: List các vùng khuôn mặt (x, y, w, h)
-        """
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30)
-        )
-        return faces
-    
+        """Detect face regions (x, y, w, h) from a BGR image."""
+        return self.face_detector.detect(image)
+
     def preprocess_face(self, face_img):
-        """
-        Tiền xử lý ảnh khuôn mặt
-        
-        Args:
-            face_img: Ảnh khuôn mặt
-            
-        Returns:
-            processed: Ảnh đã xử lý, shape (1, 48, 48, 1)
-        """
-        # Resize về 48x48
+        """Prepare face image for model input (1, 48, 48, 1)."""
         face_img = cv2.resize(face_img, (48, 48))
-        
-        # Chuyển sang grayscale nếu cần
+
         if len(face_img.shape) == 3:
             face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
-        
-        # Normalize
+
         face_img = face_img / 255.0
-        
-        # Reshape
-        face_img = face_img.reshape(1, 48, 48, 1)
-        
-        return face_img
-    
+        return face_img.reshape(1, 48, 48, 1)
+
     def predict_emotion(self, face_img):
-        """
-        Dự đoán cảm xúc từ ảnh khuôn mặt
-        
-        Args:
-            face_img: Ảnh khuôn mặt
-            
-        Returns:
-            emotion: Tên cảm xúc
-            confidence: Độ tin cậy (0-100)
-            probabilities: Xác suất của tất cả các cảm xúc
-        """
-        # Tiền xử lý
+        """Predict emotion, confidence (%), and class probabilities (%)."""
         processed = self.preprocess_face(face_img)
-        
-        # Dự đoán
         predictions = self.model.predict(processed, verbose=0)[0]
-        
-        # Lấy kết quả
-        emotion_idx = np.argmax(predictions)
+
+        emotion_idx = int(np.argmax(predictions))
         emotion = self.emotions[emotion_idx]
-        confidence = predictions[emotion_idx] * 100
-        
-        # Tạo dict xác suất
+        confidence = float(predictions[emotion_idx] * 100)
+
         probabilities = {
-            self.emotions[i]: predictions[i] * 100 
+            self.emotions[i]: float(predictions[i] * 100)
             for i in range(len(self.emotions))
         }
-        
+
         return emotion, confidence, probabilities
-    
+
+    def analyze_faces(self, image):
+        """Return detailed analysis for each face including probabilities."""
+        analyses = []
+
+        for (x, y, w, h) in self.detect_faces(image):
+            face_img = image[y : y + h, x : x + w]
+            if face_img.size == 0:
+                continue
+            emotion, confidence, probabilities = self.predict_emotion(face_img)
+
+            analyses.append(
+                {
+                    'x': int(x),
+                    'y': int(y),
+                    'w': int(w),
+                    'h': int(h),
+                    'emotion': emotion,
+                    'confidence': confidence,
+                    'probabilities': probabilities,
+                }
+            )
+
+        return analyses
+
     def detect_emotion_from_image(self, image):
-        """
-        Nhận diện cảm xúc từ ảnh có thể có nhiều khuôn mặt
-        
-        Args:
-            image: Ảnh BGR từ OpenCV
-            
-        Returns:
-            results: List các kết quả [(x, y, w, h, emotion, confidence), ...]
-        """
-        faces = self.detect_faces(image)
-        results = []
-        
-        for (x, y, w, h) in faces:
-            # Extract face
-            face_img = image[y:y+h, x:x+w]
-            
-            # Predict emotion
-            emotion, confidence, _ = self.predict_emotion(face_img)
-            
-            results.append((x, y, w, h, emotion, confidence))
-        
-        return results
-    
+        """Backward-compatible tuple output for existing callers."""
+        analyses = self.analyze_faces(image)
+        return [
+            (
+                face['x'],
+                face['y'],
+                face['w'],
+                face['h'],
+                face['emotion'],
+                face['confidence'],
+            )
+            for face in analyses
+        ]
+
     def draw_results(self, image, results):
-        """
-        Vẽ kết quả lên ảnh
-        
-        Args:
-            image: Ảnh gốc
-            results: Kết quả từ detect_emotion_from_image
-            
-        Returns:
-            image: Ảnh đã vẽ kết quả
-        """
+        """Draw face bounding boxes and emotion labels."""
         image_copy = image.copy()
-        
+
         for (x, y, w, h, emotion, confidence) in results:
-            # Vẽ khung khuôn mặt
-            cv2.rectangle(image_copy, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            
-            # Vẽ text
+            cv2.rectangle(image_copy, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
             text = f"{emotion}: {confidence:.1f}%"
-            
-            # Background cho text
             (text_width, text_height), _ = cv2.getTextSize(
                 text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
             )
@@ -158,10 +192,9 @@ class EmotionDetector:
                 (x, y - text_height - 10),
                 (x + text_width, y),
                 (0, 255, 0),
-                -1
+                -1,
             )
-            
-            # Text
+
             cv2.putText(
                 image_copy,
                 text,
@@ -169,21 +202,23 @@ class EmotionDetector:
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
                 (0, 0, 0),
-                2
+                2,
             )
-        
+
         return image_copy
 
+
 if __name__ == '__main__':
-    # Test detector
     import os
-    
-    model_path = 'models/emotion_model.h5'
-    
+
+    logging.basicConfig(level=logging.INFO)
+
+    model_path = 'models/emotion_model.keras'
     if not os.path.exists(model_path):
-        print(f"❌ Không tìm thấy model tại: {model_path}")
-        print("Vui lòng chạy training trước: python src/train.py")
+        model_path = 'models/emotion_model.h5'
+
+    if not os.path.exists(model_path):
+        logger.error('Model not found. Run training first: python src/train.py')
     else:
         detector = EmotionDetector(model_path, use_vietnamese=True)
-        print("✓ Detector đã sẵn sàng!")
-        print(f"✓ Các cảm xúc: {', '.join(detector.emotions)}")
+        logger.info('Detector ready. Emotions: %s', ', '.join(detector.emotions))

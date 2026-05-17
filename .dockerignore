@@ -1,0 +1,46 @@
+# Source control & CI
+.git
+.github
+.gitignore
+
+# Python build artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+
+# Dev environments
+.venv
+venv
+env
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Project data — NOT shipped in image
+data/
+*.csv
+
+# Tests & dev scripts — not needed in runtime image
+tests/
+scripts/
+
+# Docs & metadata
+README.md
+*.md
+LICENSE
+
+# Models that aren't needed at runtime
+models/training_history.png
+models/confusion_matrix.png
+models/evaluation.json
+models/detector_benchmark/
+models/emotion_model.h5
